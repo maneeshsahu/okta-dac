@@ -19,6 +19,18 @@ variable "sleep" {
   default = 6
 }
 
+# dac User Schema - approvalStatus
+resource "okta_user_schema" "approval-status" {
+  index       = "approvalStatus"
+  title       = "Approval Status"
+  description = "Approval Status"
+  type        = "string"
+  enum        = ["pending", "approved", "rejected"]
+  permissions = "READ_ONLY"
+  scope       = "SELF"
+  master      = "OKTA"
+}
+
 # dac Users - Everyone 
 data "okta_group" "dac-users" {
   name = "Everyone"
