@@ -31,7 +31,7 @@ data "okta_user" "dac-superuser" {
   }
 }
 
-# dac Users - Everyone 
+# dac Super Admins 
 resource "okta_group" "dac-superusers" {
   name = "SUPERUSERS"
 
@@ -43,6 +43,19 @@ resource "okta_group" "dac-superusers" {
 resource "okta_group_roles" "dac-superusers" {
   group_id    = okta_group.dac-superusers.id
   admin_roles = ["SUPER_ADMIN"]
+}
+
+# dac Tenant Admins
+resource "okta_group" "dac-tenantadmins" {
+  name = "TENANTADMINS"
+}
+
+resource "okta_group_rule" "dac-tenantadmins" {
+  name              = "TENANTADMINS_rule"
+  status            = "ACTIVE"
+  group_assignments = [okta_group.dac-tenantadmins.id]
+  expression_type   = "urn:okta:expression:1.0"
+  expression_value  = "isMemberOfGroupNameStartsWith(\"ADMINS_\")"
 }
 
 # Get default IDP Policy
