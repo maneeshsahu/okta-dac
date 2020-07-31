@@ -12,9 +12,11 @@
     "@okta/jwt-verifier": "^1.0.0",
     "aws-auth-policy": "^0.1.0",
     "axios": "^0.19.2",
-    "uuid4": "^1.1.4"
+    "uuid4": "^2.0.2"
   },
   "devDependencies": {
-    "serverless-offline": "^6.1.7"
+    "aws-sdk": "^2.724.0",
+    "serverless-offline": "^6.5.0",
+    "serverless-dynamodb-local": "^0.2.39"
   }
 }

@@ -11,34 +11,58 @@ service: okta-dac-api
 # frameworkVersion: "=X.X.X"
 plugins:
   - serverless-offline
+  - serverless-dynamodb-local
 
 custom:
   env: ${file(./.env.json)}
   ssmPrefix: ${self:custom.env.AWS_SSM_PREFIX}
+  dynamodb:
+    start:
+      port: 8000
+      inMemory: true
+      migrate: true
+    migration:
+      dir: offline/migrations
+    stages:
+      - dev
+      - test
 
 provider:
   name: aws
   runtime: nodejs12.x
   profile: ${self:custom.env.AWS_PROFILE} # This should match what's in /terraform/terraform.tfvars
-  region: ${self:custom.env.AWS_REGION}   # This should match what's in /terraform/terraform.tfvars
-  stage: ${self:custom.env.ENVIRONMENT}   # This should match what's in /terraform/terraform.tfvars
+  region: ${self:custom.env.AWS_REGION} # This should match what's in /terraform/terraform.tfvars
+  stage: ${self:custom.env.ENVIRONMENT} # This should match what's in /terraform/terraform.tfvars
   environment:
     ISSUER: ${ssm:/${self:custom.ssmPrefix}/okta/${self:provider.stage}/issuer-uri}
     AUDIENCE: ${ssm:/${self:custom.ssmPrefix}/okta/${self:provider.stage}/audience}
     CLIENT_ID: ${ssm:/${self:custom.ssmPrefix}/okta/${self:provider.stage}/client-id}
     OKTA_API_KEY: ${ssm:/${self:custom.ssmPrefix}/okta/${self:provider.stage}/api-token~true}
-
     TEMPLATE_CERT: ${ssm:/${self:custom.ssmPrefix}/okta/${self:provider.stage}/dummy-cert}
     IDP_DISCO_POLICY_ID: ${ssm:/${self:custom.ssmPrefix}/okta/${self:provider.stage}/okta-idp-disco-policyId}
     DNS_VERIFY_PREFIX: ${ssm:/${self:custom.ssmPrefix}/okta/${self:provider.stage}/dns-verify-prefix}
     RESERVED_PREFIX: ${ssm:/${self:custom.ssmPrefix}/okta/${self:provider.stage}/dac-prefix}
+    DOMAINS_TABLE: table-${self:service}-${opt:stage, self:provider.stage}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DOMAINS_TABLE}"
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DOMAINS_TABLE}/index/*"
 
 functions:
   # Authorizer
   oktaAuth:
     handler: authorizer/auth.handler
     cors: true
-  # Tenant  
+  # Tenant
   addTenant:
     handler: tenants/add.handler
     events:
@@ -127,7 +151,7 @@ functions:
           authorizer:
             name: oktaAuth
             identityValidationExpression: ^Bearer [-0-9a-zA-z\.]*$
-            resultTtlInSeconds: 0  
+            resultTtlInSeconds: 0
   # Tenant Adamins
   listTenantAdmins:
     handler: tenants/admins/list.handler
@@ -195,7 +219,7 @@ functions:
           authorizer:
             name: oktaAuth
             identityValidationExpression: ^Bearer [-0-9a-zA-z\.]*$
-            resultTtlInSeconds: 0            
+            resultTtlInSeconds: 0
   # Apps
   listApps:
     handler: apps/list.handler
@@ -218,7 +242,7 @@ functions:
           authorizer:
             name: oktaAuth
             identityValidationExpression: ^Bearer [-0-9a-zA-z\.]*$
-            resultTtlInSeconds: 0            
+            resultTtlInSeconds: 0
   # Idps
   getIdp:
     handler: idps/get.handler
@@ -266,9 +290,49 @@ functions:
             resultTtlInSeconds: 0
   # o4o Proxy
   proxy:
-      handler: o4o/proxy.handler
-      events:
-        - http:
-            path: /api/v1/{proxy+}
-            method: ANY
-            cors: true
+    handler: o4o/proxy.handler
+    events:
+      - http:
+          path: /api/v1/{proxy+}
+          method: ANY
+          cors: true
+
+resources:
+  Resources:
+    DomainsDynamoDbTable:
+      Type: "AWS::DynamoDB::Table"
+      DeletionPolicy: Retain
+      Properties:
+        TableName: ${self:provider.environment.DOMAINS_TABLE}
+        AttributeDefinitions:
+          - AttributeName: domain
+            AttributeType: S
+          - AttributeName: tenant
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tenant
+            KeyType: HASH
+          - AttributeName: domain
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: tenants-${self:provider.environment.DOMAINS_TABLE}
+            KeySchema:
+              - AttributeName: tenant
+                KeyType: HASH
+            Projection:
+              NonKeyAttributes:
+                - domain
+                - created
+                - createdBy
+              ProjectionType: INCLUDE
+          - IndexName: domains-${self:provider.environment.DOMAINS_TABLE}
+            KeySchema:
+              - AttributeName: domain
+                KeyType: HASH
+            Projection:
+              NonKeyAttributes:
+                - tenant
+                - created
+                - createdBy
+              ProjectionType: INCLUDE
+        BillingMode: PAY_PER_REQUEST

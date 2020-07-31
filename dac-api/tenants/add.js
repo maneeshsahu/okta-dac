@@ -23,33 +23,6 @@ module.exports.handler = async (event, context) => {
     }
   }
 
-  async function addGroupRule(name, tenantId, groupId) {
-    try {
-      const res = await lib.axios.post(
-        lib.orgUrl + "/api/v1/groups/rules",
-        {
-          type: "group_rule",
-          name: name + "_rule",
-          conditions: {
-            expression: {
-              type: "urn:okta:expression:1.0",
-              value: 'String.stringContains(user.approvalStatus, "pending")',
-            },
-          },
-          actions: {
-            assignUserToGroups: {
-              groupIds: [groupId],
-            },
-          },
-        },
-        lib.headers
-      );
-      return res;
-    } catch (e) {
-      throw e;
-    }
-  }
-
   async function addUserAdminRole(groupId) {
     try {
       const res = await lib.axios.post(
@@ -181,11 +154,6 @@ module.exports.handler = async (event, context) => {
         const allUsers = await addGroup("USERS_" + name, res.data.id);
         const admins = await addGroup("ADMINS_" + name, res.data.id);
         const pendingUsers = await addGroup("PENDING_" + name, res.data.id);
-        const pendingUsersRule = await addGroupRule(
-          "PENDING_" + name,
-          res.data.id,
-          pendingUsers.data.id
-        );
 
         const role = await addUserAdminRole(admins.data.id);
         await lib.addGroupAdminTarget(
@@ -218,7 +186,6 @@ module.exports.handler = async (event, context) => {
             ADMINS_groupId: admins.data.id,
             USERS_groupId: allUsers.data.id,
             PENDING_groupId: pendingUsers.data.id,
-            PENDING_groupRuleId: pendingUsersRule.data.id,
             ADMINS_roleId: role.data.id,
             name: name,
             created: res.data.created,
