@@ -65,17 +65,21 @@
 
       <v-spacer></v-spacer>
 
-      <!-- <div v-if="authenticated && isTenantAdmin">
+      <div v-if="authenticated && isTenantAdmin">
         <v-select
+          v-model="activeTenantId"
           :items="tenants"
           :label="$t('tenant')"
+          item-value="idp"
           item-text="name"
           class="mt-6"
           width="50"
+          @change="setActiveTenant"
+          @selected="setActiveTenant"
           dense
           filled
         ></v-select>
-      </div> -->
+      </div>
 
       <div class="pa-4" v-if="authenticated">
         <v-btn @click="logout">Logout</v-btn>
@@ -110,12 +114,12 @@ export default {
           title: this.$t("Apps"),
           icon: "mdi-apps",
           route: "apps",
-        },         
+        },
         {
           title: this.$t("settings"),
           icon: "mdi-account-cog",
           route: "settings",
-        },       
+        },
       ],
       suItems: [
         { title: this.$t("home"), icon: "mdi-home-city", route: "/" },
@@ -124,8 +128,19 @@ export default {
     };
   },
   computed: {
+    tenants() {
+      return this.$store.getters.tenants;
+    },
     activeTenant() {
       return this.$store.getters.activeTenant;
+    },
+    activeTenantId() {
+      let activeTenant = this.activeTenant;
+      if (!activeTenant) {
+        // If no selected tenant, then just choose the first from the drop-down list
+        activeTenant = this.tenants[0];
+      }
+      return activeTenant.idp;
     },
     activeTenantLogo() {
       return this.isTenantAdmin ? this.tenantLogo(this.activeTenant) : "";
@@ -142,16 +157,17 @@ export default {
         : "";
     },
     isTenantAdmin() {
-      return this.user
+      let retVal = this.user
         ? Object.prototype.hasOwnProperty.call(this.user, "tenants")
         : false;
-    },
-    tenants() {
-      return this.isTenantAdmin
-        ? this.user.tenants.map(function(tenant) {
-            return { name: tenant.split(":")[1] };
-          })
-        : [];
+
+      if (retVal) {
+        this.setTenants(this.user.tenants);
+      } else {
+        this.setTenants([]);
+      }
+
+      return retVal;
     },
     companyLogo() {
       let company =
@@ -163,15 +179,35 @@ export default {
   },
   async created() {
     await this.isAuthenticated();
+    this.$store.subscribe((mutation, state) => {
+      console.log("Got mutation", mutation.type);
+    });
   },
   watch: {
     // Everytime the route changes, check for auth status
     $route: "isAuthenticated",
   },
   methods: {
-    setActiveTenant(tenant) {
+    setTenants(tenantsClaim) {
+      let tenants = this.user.tenants.map(function(tenant) {
+        let tenantArray = tenant.split(":");
+        return {
+          idp: tenantArray[0],
+          name: tenantArray[1],
+          group: tenantArray[2],
+          pendingGroup: tenantArray[3],
+        };
+      });
+
+      this.$store.commit("setTenants", tenants);
+    },
+    setActiveTenant(tenantName) {
+      console.log("setActiveTenant", tenantName);
+      let tenantObj = this.tenants.filter((tenant) => {
+        return (tenant.name = tenantName);
+      })[0];
       // Using Vuex instead
-      this.$store.commit("setActiveTenant", tenant);
+      this.$store.commit("setActiveTenant", tenantObj);
     },
     tenantLogo(tenantName) {
       return "https://logo.clearbit.com/" + tenantName + ".com";
