@@ -10,18 +10,19 @@ const messages = {
     tenant: "Tenant",
     tenants: "Tenants",
     users: "Users",
-    settings: "Settings"
+    settings: "Settings",
+    tasks: "Tasks",
   },
   es: {
     tenant: "Grupo",
-    tenants: "Grupos"
-  }
+    tenants: "Grupos",
+  },
 };
 
 const i18n = new VueI18n({
   locale: "en", // set locale
   fallbackLocale: "es", // set fallback locale
-  messages // set locale messages
+  messages, // set locale messages
 });
 
 export default i18n;

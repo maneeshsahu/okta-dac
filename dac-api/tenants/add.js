@@ -38,13 +38,27 @@ module.exports.handler = async (event, context) => {
     }
   }
 
-  async function assignGroupToApp(groupId, tenantId, tenantName, usersGroupId) {
+  async function assignGroupToApp(
+    groupId,
+    tenantId,
+    tenantName,
+    usersGroupId,
+    pendingUsersGroupId
+  ) {
     try {
       const res = await lib.axios.put(
         lib.orgUrl + "/api/v1/apps/" + appClientId + "/groups/" + groupId,
         {
           profile: {
-            tenants: [tenantId + ":" + tenantName + ":" + usersGroupId],
+            tenants: [
+              tenantId +
+                ":" +
+                tenantName +
+                ":" +
+                usersGroupId +
+                ":" +
+                pendingUsersGroupId,
+            ],
           },
         },
         lib.headers
@@ -175,7 +189,8 @@ module.exports.handler = async (event, context) => {
           admins.data.id,
           res.data.id,
           name,
-          allUsers.data.id
+          allUsers.data.id,
+          pendingUsers.data.id
         );
         await updateTenantJitGroupAndInactivate(res.data.id, allUsers.data.id);
 

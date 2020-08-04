@@ -33,6 +33,19 @@
               <v-list-item-title>{{ item.title }}</v-list-item-title>
             </v-list-item-content>
           </router-link>
+
+          <v-list-item-action v-if="item.route === 'tasks' && pendingTasks > 0">
+            <v-badge
+              :content="pendingTasks"
+              transition="slide-x-transition"
+              color="error"
+              :value="pendingTasks > 0"
+              right
+              inline
+            >
+              <v-icon color="grey lighten-1"></v-icon>
+            </v-badge>
+          </v-list-item-action>
         </v-list-item>
 
         <v-list-item></v-list-item>
@@ -65,6 +78,22 @@
 
       <v-spacer></v-spacer>
 
+      <!-- <div v-if="authenticated && isTenantAdmin">
+        <v-btn @click="$router.push('tenantTasks')">
+          <v-badge
+            :content="pendingTasks"
+            transition="slide-x-transition"
+            color="error"
+            :value="pendingTasks > 0"
+            left
+          >
+            <v-icon>
+              mdi-bell
+            </v-icon>
+          </v-badge>
+        </v-btn>
+      </div> -->
+
       <div v-if="authenticated && isTenantAdmin">
         <v-select
           v-model="activeTenantId"
@@ -94,15 +123,19 @@
 <script>
 import md5 from "md5";
 import AuthJS from "@okta/okta-auth-js";
+import axios from "axios";
 
 export default {
   name: "App",
   data() {
     return {
       drawer: null,
+      pendingTasks: 0,
+      pendingInterval: null,
       authenticated: false,
       user: null,
       superuserFlag: false,
+      isTenantAdmin: false,
       items: [
         { title: this.$t("home"), icon: "mdi-home-city", route: "/" },
         {
@@ -120,6 +153,11 @@ export default {
           icon: "mdi-account-cog",
           route: "settings",
         },
+        {
+          title: this.$t("tasks"),
+          icon: "mdi-bell",
+          route: "tasks",
+        },
       ],
       suItems: [
         { title: this.$t("home"), icon: "mdi-home-city", route: "/" },
@@ -128,6 +166,9 @@ export default {
     };
   },
   computed: {
+    o4oToken() {
+      return this.$store.getters.o4oToken;
+    },
     tenants() {
       return this.$store.getters.tenants;
     },
@@ -156,19 +197,6 @@ export default {
         ? "https://www.gravatar.com/avatar/" + md5(this.user.preferred_username)
         : "";
     },
-    isTenantAdmin() {
-      let retVal = this.user
-        ? Object.prototype.hasOwnProperty.call(this.user, "tenants")
-        : false;
-
-      if (retVal) {
-        this.setTenants(this.user.tenants);
-      } else {
-        this.setTenants([]);
-      }
-
-      return retVal;
-    },
     companyLogo() {
       let company =
         this.user && Object.prototype.hasOwnProperty.call(this.user, "tenants")
@@ -182,6 +210,9 @@ export default {
     this.$store.subscribe((mutation, state) => {
       console.log("Got mutation", mutation.type);
     });
+    this.pendingInterval = setInterval(() => {
+      this.calculatePendingTasks();
+    }, 50000);
   },
   watch: {
     // Everytime the route changes, check for auth status
@@ -220,7 +251,44 @@ export default {
           this.user.groups.findIndex((g) => {
             return g == "SUPERUSERS";
           }) >= 0;
+        this.isTenantAdmin = Object.prototype.hasOwnProperty.call(
+          this.user,
+          "tenants"
+        );
+        if (this.isTenantAdmin) {
+          this.setTenants(this.user.tenants);
+        } else {
+          this.setTenants([]);
+        }
       }
+    },
+    async calculatePendingTasks() {
+      if (this.activeTenant) {
+        var vm = this;
+        await axios
+          .get(
+            //const groupInfo = await ;
+            this.$config.api +
+              "/api/v1/groups/" +
+              this.activeTenant.pendingGroup +
+              "?expand=stats",
+            { headers: { Authorization: "Bearer " + this.o4oToken } }
+          )
+          .then(function(response) {
+            if (
+              Object.prototype.hasOwnProperty.call(response.data, "_embedded")
+            ) {
+              vm.pendingTasks = response.data._embedded.stats.usersCount;
+            } else {
+              console.log("Wasnt able to get User count");
+              vm.pendingTasks = 0;
+            }
+          });
+        console.log("Pending tasks: " + this.pendingTasks);
+        return;
+      }
+
+      this.pendingTasks = 0;
     },
     home() {
       this.$router.push({
