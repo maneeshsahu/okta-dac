@@ -296,6 +296,21 @@ functions:
           path: /api/v1/{proxy+}
           method: ANY
           cors: true
+  # Event hook
+  eventHook:
+    handler: hooks/event.handler
+    events:
+      - http:
+          path: events
+          method: post
+          cors: true
+  verifyEventHook:
+    handler: hooks/verify.handler
+    events:
+      - http:
+          path: events
+          method: get
+          cors: true
 
 resources:
   Resources:
