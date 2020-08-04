@@ -138,6 +138,10 @@ export default {
           }
         );
         console.log(res3.data);
+
+        this.tasks = this.tasks.filter(function(task) {
+          return task.id !== userId;
+        });
       } catch (error) {
         this.message = `There was a problem approving user: ${error}`;
       }
